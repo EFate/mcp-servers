@@ -17,10 +17,8 @@ WORKDIR /app
 # 只要这两个文件不变，后续的依赖安装步骤就不会重复执行，从而加快构建速度。
 COPY pyproject.toml uv.lock* ./
 
-# 4. 使用 uv pip install 安装依赖
-#    - 'uv pip install .' 会读取 pyproject.toml 并安装其主依赖及子依赖。
-#    - UV_HTTP_TIMEOUT 以防止网络超时问题。
-RUN UV_HTTP_TIMEOUT=300 uv pip install . --no-cache --system
+# 4.安装依赖
+RUN pip install --no-cache-dir .
 
 # 5. 将项目所有文件复制到工作目录
 # 这一步在安装完依赖之后执行。由于有 .dockerignore 文件，不必要的内容不会被复制。
