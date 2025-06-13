@@ -17,8 +17,7 @@ COPY pyproject.toml uv.lock* ./
 
 # 4. 使用 uv sync 安装依赖
 # 'uv sync' 是最佳实践，它会根据 uv.lock 文件安装精确版本的依赖，确保环境一致性。
-# 'uv pip install -r pyproject.toml' 是错误的用法，-r 标志用于 requirements.txt。
-RUN uv sync --system --no-cache
+RUN uv sync --no-cache
 
 # 5. 将项目所有文件复制到工作目录
 # 这一步在安装完依赖之后执行。由于有 .dockerignore 文件，不必要的内容不会被复制。
