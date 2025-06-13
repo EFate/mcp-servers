@@ -18,7 +18,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 
 # 4.安装依赖
-RUN uv sync --no-cache
+RUN UV_HTTP_TIMEOUT=15 uv sync --no-cache
 
 # 5. 将项目所有文件复制到工作目录
 # 这一步在安装完依赖之后执行。由于有 .dockerignore 文件，不必要的内容不会被复制。
@@ -32,4 +32,4 @@ EXPOSE 13000
 
 # 8. 定义容器启动命令
 # 使用绝对路径，确保命令的准确性
-CMD ["./docker/start.sh"]
+CMD ["/app/docker/start.sh"]
