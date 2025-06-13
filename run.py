@@ -17,7 +17,7 @@ def main(
     )] = "0.0.0.0",
     port: Annotated[int, typer.Option(
         "-p", "--port", help="要监听的端口号。"
-    )] = 8000,
+    )] = 13000,
     reload: Annotated[bool, typer.Option(
         "--reload/--no-reload", help="启用或禁用热重载模式。"
     )] = True,

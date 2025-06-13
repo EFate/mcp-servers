@@ -6,92 +6,79 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_mcp import FastApiMCP
+from fastapi_mcp import FastApiMCP  # 导入 MCP 支持
 
-# --- 导入我们的新模块 ---
 from app.handlers.exception import register_exception_handlers
 from app.core.config import settings
 from app.core.setup import setup_logging
-from app.routers import all_routers
+from app.routers import api_routers
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    应用生命周期管理器 (Lifespan Manager)。
-    """
-    print("MCP Servers 启动中...")
-    # 配置日志系统
+    """应用生命周期管理器"""
     setup_logging()
     print(f"--- {settings.PROJECT_NAME} (v{settings.PROJECT_VERSION}) 开始启动 ---")
     yield
-    print("MCP Servers 关闭中...")
+    print("--- 服务关闭 ---")
 
 
 def create_app() -> FastAPI:
-    """
-    创建并配置 FastAPI 应用实例的工厂函数。
-    """
+    """创建并配置 FastAPI 应用实例"""
     app = FastAPI(
         lifespan=lifespan,
         title=settings.PROJECT_NAME,
         version=settings.PROJECT_VERSION,
         description=settings.DESCRIPTION,
-        docs_url=None,  # 禁用默认的 /docs，我们将使用自定义路径
+        docs_url=None,
         redoc_url=None,
     )
 
-    # --- 注册全局异常处理器 ---
-    # 将异常处理逻辑委托给专门的模块，使主文件更清晰
+    # 1. 注册全局异常处理器
     register_exception_handlers(app)
 
-    # 注册中间件
-    # 此处可添加 CORS、认证等中间件
+    # 2. 添加CORS中间件
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 在生产环境中应收紧
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
+    mcp = FastApiMCP(app)
 
-    # 3. 统一注册所有路由并动态挂载模块化 MCP 服务
-    print("--- 正在注册路由和模块化 MCP 服务 ---")
-    for router in all_routers:
-        # 首先，将路由包含到主应用中，使其 API 可用
-        app.include_router(router)
-        print(f" ✓ API 路由已注册: {router.prefix} (Tags: {', '.join(router.tags)})")
+    # 3. 注册API路由 和 MCP
+    for api, prefix in api_routers:
+        app.include_router(api)
 
-        # 接着，检查此路由是否需要专属的 MCP 服务 (根据我们在 config.py 中定义的标签)
-        if settings.MCP_INCLUDE_TAG in router.tags:
-            # 找到代表模块的唯一标签 (例如 "Time", "Weather")
-            module_tag = next((tag for tag in router.tags if tag != settings.MCP_INCLUDE_TAG), None)
-            if not module_tag:
-                continue  # 如果找不到唯一模块标签，则跳过
+        # 注册并挂载 MCP 服务
+        # mcp = FastApiMCP(
+        #     app,
+        #     name=f"{str(api.tags[0]).capitalize()} Tools",
+        #     description=f"通过MCP协议暴露的 {prefix} 模块下的工具集。",
+        #     # 使用该路由自身的标签来发现工具
+        #     include_tags=api.tags,
+        #     # 在工具描述中包含所有可能的响应模式，增强LLM的理解能力
+        #     describe_all_responses=True,
+        #     describe_full_response_schema=True
+        # )
+        mcp.name = f"{str(api.tags[0]).capitalize()} Tools"
+        mcp.description = f"通过MCP协议暴露的 {prefix} 模块下的工具集。",
+        mcp.include_tags=api.tags,
+        mcp.describe_all_responses=True,
+        mcp.describe_full_response_schema=True
 
-            # 为此模块动态创建一个专属的 FastApiMCP 实例
-            # 注意：include_tags 使用模块的唯一标签来确保只包含此模块下的工具
-            module_mcp = FastApiMCP(
-                app,  # 依然使用主 app 来获取完整的 OpenAPI schema
-                name=f"{module_tag} 工具集",
-                description=f"专为 {module_tag} 模块提供的 MCP 工具。",
-                include_tags=[module_tag]
-            )
+        mcp.mount(router=app, mount_path=f"{prefix}/mcp/sse")
 
-            # 使用 app.mount() 将这个专属 MCP 服务挂载到模块的子路径下
-            mcp_path = f"{router.prefix}/mcp"
-            app.mount(mcp_path, module_mcp, name=f"mcp_{module_tag.lower()}")
-            print(f" ★ MCP 服务已挂载: {mcp_path}")
-
-    # --- 挂载静态文件 ---
+    # 5. 挂载静态文件 (用于自定义Swagger UI)
     STATIC_FILES_DIR = Path(__file__).parent / "static"
     if STATIC_FILES_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=STATIC_FILES_DIR), name="static")
 
-    # --- 自定义文档路由 ---
+    # 6. 自定义Swagger文档路径
     @app.get("/docs", include_in_schema=False)
     async def custom_swagger_ui_html():
-        """提供自定义的 Swagger UI 界面。"""
         return get_swagger_ui_html(
             openapi_url=app.openapi_url,
             title=app.title + " - API 文档",
@@ -99,13 +86,16 @@ def create_app() -> FastAPI:
             swagger_css_url="/static/swagger-ui/swagger-ui.css",
         )
 
+    # 7. 根路径
     @app.get("/", tags=["System"], include_in_schema=False)
     async def read_root():
-        """根路径，提供欢迎信息和文档链接。"""
-        return {"message": f"欢迎使用 MCP Servers!", "docs_url": "/docs"}
+        return {
+            "message": f"欢迎使用 {settings.PROJECT_NAME}!",
+            "docs_url": "/docs",
+        }
 
     return app
 
 
-# 创建 FastAPI 应用实例，供 uvicorn 在 run.py 中通过 "app.main:app" 引用和启动。
 app = create_app()
+
