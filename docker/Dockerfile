@@ -1,0 +1,35 @@
+# 位于 docker/ 目录下的 Dockerfile
+
+FROM python:3.10-slim
+
+# 1. 配置 pip 和 uv 的国内镜像源 (可选，但推荐)
+# uv 会自动识别和使用 pip 的配置
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip install --no-cache-dir --upgrade pip uv
+
+# 2. 创建并设置工作目录
+WORKDIR /app
+
+# 3. 复制依赖定义文件
+# 优先复制这两个文件，以便利用 Docker 的层缓存。
+# 只要这两个文件不变，后续的依赖安装步骤就不会重复执行，从而加快构建速度。
+COPY pyproject.toml uv.lock* ./
+
+# 4. 使用 uv sync 安装依赖
+# 'uv sync' 是最佳实践，它会根据 uv.lock 文件安装精确版本的依赖，确保环境一致性。
+# 'uv pip install -r pyproject.toml' 是错误的用法，-r 标志用于 requirements.txt。
+RUN uv sync --system --no-cache
+
+# 5. 将项目所有文件复制到工作目录
+# 这一步在安装完依赖之后执行。由于有 .dockerignore 文件，不必要的内容不会被复制。
+COPY . .
+
+# 6. 赋予启动脚本执行权限
+RUN chmod +x /app/docker/start.sh
+
+# 7. 暴露 FastAPI 应用端口
+EXPOSE 13000
+
+# 8. 定义容器启动命令
+# 使用绝对路径，确保命令的准确性
+CMD ["./docker/start.sh"]

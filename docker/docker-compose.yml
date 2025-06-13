@@ -1,0 +1,21 @@
+# 位于 docker/ 目录下的 docker-compose.yml
+# 定义服务
+services:
+  # 服务的名称
+  mcp-services:
+    # 构建指令
+    build:
+      # 'context'：构建上下文的路径。'..' 表示项目根目录。
+      context: ..
+      # 'dockerfile'：Dockerfile 的路径，相对于 context。
+      dockerfile: docker/Dockerfile
+
+    # 容器名称
+    container_name: mcp-servers
+
+    # 端口映射: "主机端口:容器端口"
+    ports:
+      - "13000:13000"  # FastAPI
+
+    # 重启策略: 除非手动停止，否则容器总是在退出后重启
+    restart: unless-stopped
