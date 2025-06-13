@@ -5,6 +5,9 @@ FROM python:3.10-slim
 # 1. 配置 pip 和 uv 的国内镜像源 (可选，但推荐)
 # uv 会自动识别和使用 pip 的配置
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    # 将清华源的域名添加为信任主机
+    pip config set install.trusted-host pypi.tuna.tsinghua.edu.cn && \
+    # 使用配置好的镜像源升级 pip 并安装 uv
     pip install --no-cache-dir --upgrade pip uv
 
 # 2. 创建并设置工作目录
