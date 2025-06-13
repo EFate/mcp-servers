@@ -17,7 +17,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 
 # 4.安装依赖
-RUN uv pip install --system --no-cache -r pyproject.toml
+RUN uv sync --no-cache
 
 # 5. 将项目所有文件复制到工作目录
 # 这一步在安装完依赖之后执行。由于有 .dockerignore 文件，不必要的内容不会被复制。
