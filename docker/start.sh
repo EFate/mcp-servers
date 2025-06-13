@@ -11,4 +11,4 @@ cd /app || exit
 echo "[INFO] Current working directory: $(pwd)"
 
 # 在前台启动 FastAPI 应用 (作为容器的主进程)
-python run.py
+uv run python run.py
