@@ -4,43 +4,37 @@ import reverse_geocoder as rg
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.config import settings
-from app.schemas.response import ApiResponse
 from app.schemas import weather as weather_schemas
 
-# 这是自动发现的关键：创建一个 APIRouter 实例
-# - prefix: 定义此模块下所有 API 的路径前缀
-# - tags: 用于 API 文档分组和 MCP 服务命名
 router = APIRouter(
     prefix="/weather",
     tags=[settings.MCP_INCLUDE_TAG, "Weather"]
 )
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
-# 官方使用华氏度的国家代码
-FAHRENHEIT_COUNTRIES = {"US", "LR", "MM"}  # 美国, 利比里亚, 缅甸
-
+FAHRENHEIT_COUNTRIES = {"US", "LR", "MM"}
 
 @router.get(
     "/forecast",
-    response_model=ApiResponse[weather_schemas.WeatherForecastOutput],
-    summary="获取当前天气和预报",
-    operation_id="get_weather_forecast"  # <--- 为 MCP 工具提供清晰的名称
+    # --- 优化点: 移除 ApiResponse, 直接返回核心数据模型 ---
+    response_model=weather_schemas.WeatherForecastOutput,
+    summary="获取指定地理位置的当前天气和未来预报",
+    operation_id="get_weather_forecast"
 )
 async def get_weather_forecast(
-        latitude: float = Query(..., description="目标位置的纬度 (例如, 34.05)"),
-        longitude: float = Query(..., description="目标位置的经度 (例如, -118.24)")
+        latitude: float = Query(..., description="目标位置的纬度", examples=[34.0522]),
+        longitude: float = Query(..., description="目标位置的经度", examples=[-118.2437])
 ):
     """
-    根据指定的经纬度，使用 Open-Meteo API 获取当前天气和小时级预报。
-    温度单位（摄氏度/华氏度）会基于地理位置自动判断。
+    当用户询问特定地点（由经纬度指定）的天气状况时，使用此工具。
+    它能提供实时的气温、风速以及未来几小时的预报。
+    温度单位会根据国家（美国、利比里亚、缅甸使用华氏度，其他使用摄氏度）自动选择。
     """
-    # 根据地理位置自动判断温度单位
     try:
         geo_results = rg.search((latitude, longitude), mode=1)
         country_code = geo_results[0]['cc'] if geo_results else None
         temperature_unit = "fahrenheit" if country_code in FAHRENHEIT_COUNTRIES else "celsius"
     except Exception:
-        # 如果地理反编码失败，默认使用摄氏度
         temperature_unit = "celsius"
 
     params = {
@@ -54,18 +48,15 @@ async def get_weather_forecast(
 
     try:
         response = requests.get(OPEN_METEO_URL, params=params)
-        response.raise_for_status()  # 如果状态码是 4xx 或 5xx，则抛出异常
+        response.raise_for_status()
         data = response.json()
 
         if "current" not in data or "hourly" not in data:
             raise HTTPException(status_code=500, detail="从 Open-Meteo API 收到了意外的响应格式")
 
-        # 将获取的数据包装在统一的 ApiResponse 模型中返回
-        # Pydantic 会自动验证 data 是否符合 WeatherForecastOutput 的结构
-        return ApiResponse(data=data)
+        return data
 
     except requests.exceptions.RequestException as e:
-        # 使用 HTTPException，会被全局异常处理器捕获并格式化
         raise HTTPException(status_code=503, detail=f"连接 Open-Meteo API 时出错: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"发生内部错误: {e}")

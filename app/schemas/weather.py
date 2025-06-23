@@ -6,8 +6,8 @@ from typing import List
 
 class CurrentWeather(BaseModel):
     time: str = Field(..., description="ISO 8601 格式的时间戳")
-    temperature_2m: float = Field(..., alias="temperature_2m", description="离地2米的气温")
-    wind_speed_10m: float = Field(..., alias="wind_speed_10m", description="离地10米的Š的风速")
+    temperature_2m: float = Field(..., alias="temperature_2m", description="离地2米的气温。单位根据请求自动确定 (摄氏度/华氏度)")
+    wind_speed_10m: float = Field(..., alias="wind_speed_10m", description="离地10米的风速。单位是公里/小时或英里/小时")
 
 class HourlyUnits(BaseModel):
     time: str
