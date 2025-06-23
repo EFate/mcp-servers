@@ -19,3 +19,13 @@ services:
 
     # 重启策略: 除非手动停止，否则容器总是在退出后重启
     restart: unless-stopped
+
+    # 连接到自定义网络
+    networks:
+      - mcp
+
+# 定义自定义网络
+networks:
+  mcp:
+    name: mcp  # 指定网络名称为 mcp
+    driver: bridge  # 使用 bridge 驱动（默认）
